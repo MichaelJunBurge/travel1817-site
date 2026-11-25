@@ -34,15 +34,48 @@
     lastY = y;
   };
   document.body.classList.add('hdr-shown');
-  addEventListener('scroll', paintHeader, { passive: true }); paintHeader();
+
+  // ---------- the page colour behind the phone's own strips (camera area, address bar) ----------
+  // iPhones tint those strips with the page colour, so it follows what's on screen: the sky at the top of the
+  // hero photo, night once the footer or the menu fills the screen, otherwise the colour at the top edge
+  const NIGHT = getComputedStyle(root).getPropertyValue('--night').trim() || '#15110E';
+  const PAPER = getComputedStyle(root).getPropertyValue('--paper').trim() || '#F2EDE4';
+  const metaTheme = document.querySelector('meta[name="theme-color"]'); const mainOf = document.querySelector('main');
+  let sky = null, tinted = '';
+  if (heroEl) {
+    const im = new Image(); im.src = 'img/hero.webp';
+    im.onload = () => { try { const c = document.createElement('canvas'); c.width = 40; c.height = 4; const g = c.getContext('2d'); g.drawImage(im, 0, 0, im.naturalWidth, im.naturalHeight * 0.06, 0, 0, 40, 4); const d = g.getImageData(0, 0, 40, 4).data; let r = 0, gg = 0, b = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; } const n = d.length / 4; sky = `rgb(${Math.round(r / n)}, ${Math.round(gg / n)}, ${Math.round(b / n)})`; tint(); } catch (e) {} };
+  }
+  const tint = () => {
+    const vh = innerHeight; let c = PAPER;
+    if (document.body.classList.contains('menu-open') || (mainOf && mainOf.getBoundingClientRect().bottom < vh * 0.5)) c = NIGHT;
+    else if (heroEl && sky && heroEl.getBoundingClientRect().bottom > vh * 0.15) c = sky;
+    else {
+      const top = themed.find((s) => { const r = s.getBoundingClientRect(); return r.top <= 1 && r.bottom > 1; });
+      const bg = top ? getComputedStyle(top).backgroundColor : '';
+      c = bg && !/rgba\(0, 0, 0, 0\)|transparent/.test(bg) ? bg : PAPER;
+    }
+    if (c === tinted) return; tinted = c;
+    root.style.backgroundColor = c; document.body.style.backgroundColor = c; if (metaTheme) metaTheme.content = c;
+  };
+  addEventListener('scroll', () => { paintHeader(); tint(); }, { passive: true }); paintHeader(); tint();
 
   const menuBtn = document.querySelector('.hdr__menu'); const menu = document.getElementById('menu');
   menuBtn.addEventListener('click', () => {
     const open = menuBtn.getAttribute('aria-expanded') !== 'true';
     menuBtn.setAttribute('aria-expanded', String(open));
-    if (open) { menu.hidden = false; requestAnimationFrame(() => document.body.classList.add('menu-open')); lenis && lenis.stop(); }
-    else { document.body.classList.remove('menu-open'); setTimeout(() => (menu.hidden = true), 400); lenis && lenis.start(); }
+    if (open) { menu.hidden = false; requestAnimationFrame(() => { document.body.classList.add('menu-open'); tint(); }); lenis && lenis.stop(); }
+    else { document.body.classList.remove('menu-open'); tint(); setTimeout(() => (menu.hidden = true), 400); lenis && lenis.start(); }
   });
+
+  // ---------- destination cards on touch screens: first tap opens the details, second tap goes to the planner ----------
+  if (!fine) {
+    const cards = $$('.dcard');
+    cards.forEach((c) => c.addEventListener('click', (e) => {
+      if (c.classList.contains('is-open')) return;
+      e.preventDefault(); cards.forEach((o) => o.classList.toggle('is-open', o === c));
+    }));
+  }
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && menuBtn.getAttribute('aria-expanded') === 'true') menuBtn.click(); });
 
   // ---------- split text into lines (keeps italics), so each line can rise from its own mask ----------
@@ -135,8 +168,22 @@
         if (a > seen + 1) { a = seen + 1; d = a + 0.001; pinTo(whyEl, stageP(a)); }
         seen = a; brake(1500);
       }
-      wp.forEach((pn, i) => pn.style.setProperty('--b', clamp(d - i).toFixed(3)));
-      if (a !== cur && performance.now() > clickHold) { cur = a; wp.forEach((pn, i) => pn.classList.toggle('is-active', i === a)); }
+      // the bars: full for the cards already open-and-closed, filling for the open one, empty ahead
+      wp.forEach((pn, i) => pn.style.setProperty('--b', (i < cur ? 1 : i > cur ? 0 : clamp(d - i)).toFixed(3)));
+      if (a !== target) { target = a; if (!stepT) step(); }
+    };
+    // the cards never skip: whatever the scroll does, each card opens and closes in turn on its way to the one you've
+    // reached. When the scroll is far ahead, each step is quicker, but every card still gets its turn.
+    let target = 0, stepT = 0;
+    const step = () => {
+      stepT = 0;
+      const wait = clickHold - performance.now(); if (wait > 0) { stepT = setTimeout(step, wait); return; }
+      if (cur === target) return;
+      const behind = Math.abs(target - cur); const next = cur + Math.sign(target - cur);
+      const dur = behind > 1 ? 0.62 : 1.1; // seconds: a quick hand-off when catching up, the full move otherwise
+      row.style.setProperty('--wt', `${dur}s`);
+      cur = next; wp.forEach((pn, i) => { pn.classList.toggle('is-active', i === next); pn.style.setProperty('--b', i < next ? '1' : i > next ? '0' : pn.style.getPropertyValue('--b')); });
+      stepT = setTimeout(step, dur * 1000 + 40);
     };
     const row = whyEl.querySelector('.wpanels');
     const sizeP = () => { const W = row.clientWidth; const g = parseFloat(getComputedStyle(row).columnGap) || 0; const c = Math.round((W - 3 * g) / 6.6); row.style.setProperty('--wc', `${c}px`); row.style.setProperty('--wo', `${W - 3 * g - 3 * c}px`); };
@@ -145,11 +192,25 @@
       if (i === cur) return;
       // open it now; then move the scene's clock to that panel without the stages in between flickering open
       entered = true; seen = Math.max(seen, i); brakeUntil = 0; if (lenis) lenis.start();
-      cur = i; wp.forEach((q, k) => q.classList.toggle('is-active', k === i)); clickHold = performance.now() + 1500;
+      cur = i; target = i; row.style.setProperty('--wt', '1.1s'); wp.forEach((q, k) => q.classList.toggle('is-active', k === i)); clickHold = performance.now() + 1500;
       const top = whyEl.getBoundingClientRect().top + scrollY; const span = whyEl.offsetHeight - innerHeight;
       const y = top + (0.04 + ((i + 0.3) / 4) * 0.88) * span; lenis ? lenis.scrollTo(y, { duration: 1.2, force: true }) : scrollTo({ top: y, behavior: 'smooth' });
     }));
   }
+  // pinned scenes start a padding unit below the top of the screen; one too tall to do that and still clear the bottom
+  // by a comfortable margin is centred instead, so nothing is ever cut off
+  const fitStages = $$('.reviews.is-pinned .pin__stage, .story.is-pinned .pin__stage, .founder.is-pinned .pin__stage, .promises.is-pinned .pin__stage');
+  const fitScenes = () => fitStages.forEach((st) => {
+    st.style.paddingTop = '';
+    if (innerWidth < 901) return;
+    const base = parseFloat(getComputedStyle(st).paddingTop) || 0; const top0 = st.getBoundingClientRect().top;
+    const kids = [...st.querySelectorAll('*')].filter((k) => k.offsetHeight > 0 && getComputedStyle(k).position !== 'absolute');
+    const lo = Math.min(...kids.map((k) => k.getBoundingClientRect().top)) - top0, hi = Math.max(...kids.map((k) => k.getBoundingClientRect().bottom)) - top0;
+    const h = hi - lo, room = innerHeight - hi;
+    if (room < 56) st.style.paddingTop = `${Math.max(20, base + (innerHeight - h) / 2 - lo).toFixed(0)}px`;
+  });
+  fitScenes(); (document.fonts ? document.fonts.ready : Promise.resolve()).then(fitScenes);
+  let fsT = 0; addEventListener('resize', () => { clearTimeout(fsT); fsT = setTimeout(fitScenes, 200); });
   // [data-seq] lists: each item waits for the one before it, so they play one at a time however fast you scroll
   const seqGap = 1100;
   const turnOnNow = (el) => { el.classList.add('is-on', 'is-in'); settle(el); el.dispatchEvent(new Event('on')); };
@@ -178,7 +239,9 @@
   }
 
   // ---------- the scroll clock: drift, fills, scrubbed progress ----------
-  const drifts = $$('[data-speed]').map((el) => ({ el, s: parseFloat(el.dataset.speed) }));
+  // phones: a third of the drift. A small screen moves a long way per flick, and full-strength drift pushed photos out of their frames
+  const driftK = matchMedia('(max-width: 800px)').matches ? 0.35 : 1;
+  const drifts = $$('[data-speed]').map((el) => ({ el, s: parseFloat(el.dataset.speed) * driftK }));
   const scrubs = $$('[data-scrub], .cta--wheel');
   const focusCtas = $$('.cta--focus');
   const brand = document.querySelector('.page-home .hdr__brand');
@@ -258,6 +321,15 @@
     }
     for (const f of fills) {
       const P = f.pin && pins.find((x) => x.sec === f.pin);
+      // a scene that isn't pinned here (phones, upright tablets) plays on its own clock once it's in view:
+      // a flick can't carry you past it half-written
+      if (f.pin && !P && motion) {
+        if (!f.played && f.el.getBoundingClientRect().top < vh * 0.72) {
+          f.played = true; f.pin.classList.add('is-played');
+          f.words.forEach((w, i) => setTimeout(() => w.classList.add('on'), 350 + i * 75));
+        }
+        continue;
+      }
       let p;
       if (P && f.range) p = clamp((P.p - f.range[0]) / (f.range[1] - f.range[0]));
       else { const r = f.el.getBoundingClientRect(); p = clamp((vh * 0.82 - r.top) / (r.height + vh * 0.32)); }
@@ -348,7 +420,8 @@
   // held sections: glide into place and hold until the entrance has played (downward, first pass only)
   const gates = motion ? $$('[data-hold]') : [];
   const arrive = (sec) => {
-    const now = $$('[data-rise]:not(.is-in), [data-lines]:not(.is-in)', sec).filter((el) => sec.hasAttribute('data-reveal-all') || el.getBoundingClientRect().top < innerHeight);
+    // [data-solo] parts (the continent titles) keep their own entrance: they play as they reach the screen
+    const now = $$('[data-rise]:not(.is-in), [data-lines]:not(.is-in)', sec).filter((el) => (sec.hasAttribute('data-reveal-all') && !el.closest('[data-solo]')) || el.getBoundingClientRect().top < innerHeight);
     now.forEach((el) => { io.unobserve(el); queue.push(el); });
     if (queue.length && !timer) timer = requestAnimationFrame(flush);
     sec.classList.add('is-arrived'); sec.dispatchEvent(new Event('arrive'));
@@ -592,23 +665,54 @@
   // ---------- featured journeys: a photo follows the cursor down the list ----------
   const jf = document.querySelector('.jfloat');
   if (jf && fine) {
-    const list = document.querySelector('.jlist'); const imgs = $$('img', jf);
+    const list = document.querySelector('.jgroups'); const imgs = $$('img', jf);
     let tx = 0, ty = 0, x = 0, y = 0, raf = 0, on = false;
     let rz = 0;
     const step = () => { x += (tx - x) * 0.16; y += (ty - y) * 0.16; rz += (rot - rz) * 0.16; jf.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${rz.toFixed(2)}deg)`; raf = on || Math.abs(tx - x) > 0.5 || Math.abs(ty - y) > 0.5 ? requestAnimationFrame(step) : 0; };
     // the photo lives in the empty column between the name and the price; it only follows the cursor up and down,
     // drifting a little sideways, so it can never cover the trip details
-    const stage = list.querySelector('.jrow__stage'); const rows = $$('.jrow', list); let cur = 0, rot = 0;
+    const rows = $$('.jrow', list); let cur = 0, rot = 0;
+    // the photo is centred between the left edge of the screen and the row's number, leaning a little toward the list,
+    // and follows the row up and down
     const place = () => {
-      const w = jf.offsetWidth, h = jf.offsetHeight; const sr = stage.getBoundingClientRect(); const rr = rows[cur].getBoundingClientRect();
-      const n = rows.length; const th = ((cur / (n - 1)) - 0.5) * Math.PI * 0.9; const R = Math.max(40, sr.width - w) * 0.5;
-      tx = sr.left + sr.width / 2 - w / 2 + R * (Math.cos(th) - 0.55) * 2.1; rot = Math.sin(th) * 10.5;
-      ty = clamp(rr.top + rr.height / 2 - h / 2 + Math.sin(th * 2.4) * 22, 70, innerHeight - h - 20);
+      const w = jf.offsetWidth, h = jf.offsetHeight; const row = rows[cur]; const rr = row.getBoundingClientRect();
+      const nLeft = row.querySelector('.jrow__n').getBoundingClientRect().left;
+      const k = rows.indexOf(row);
+      tx = nLeft / 2 - w / 2; rot = -(3 + (k % 3) * 1.6);
+      ty = clamp(rr.top + rr.height / 2 - h / 2, 70, innerHeight - h - 20);
     };
     list.addEventListener('pointermove', () => { place(); if (!on) { x = tx; y = ty; } if (!raf) raf = requestAnimationFrame(step); });
     addEventListener('scroll', () => { if (on) { place(); if (!raf) raf = requestAnimationFrame(step); } }, { passive: true });
     rows.forEach((row, i) => row.addEventListener('pointerenter', () => { cur = i; on = true; jf.classList.add('is-on'); imgs.forEach((im) => im.classList.toggle('is-on', im.dataset.for === row.dataset.img)); }));
     list.addEventListener('pointerleave', () => { on = false; jf.classList.remove('is-on'); });
+  }
+
+  // ---------- the journeys wave: the row under the mouse leans out to the left, its neighbours a little less, and so
+  // on (a bell curve). It follows the mouse, not the scroll, and settles back flat when the mouse leaves the list.
+  // Touch screens have no mouse: there the row at the middle of the screen leans, as you scroll. ----------
+  const waveRows = motion ? $$('.jgroups .jrow') : [];
+  if (waveRows.length) {
+    const A = fine ? 58 : 26;                      // the furthest lean, px
+    const now = waveRows.map(() => 0); let my = null, wr = 0;
+    const tick = () => {
+      wr = 0; const vh = innerHeight, sigma = vh * (fine ? 0.15 : 0.12); const centre = fine ? my : vh / 2;
+      const tops = waveRows.map((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2; }); // the lean is sideways only, so it never moves these
+      let moving = false;
+      waveRows.forEach((r, i) => {
+        const d = centre === null ? 9 : (tops[i] - centre) / sigma; const target = Math.abs(d) > 4 ? 0 : -A * Math.exp(-d * d);
+        now[i] += (target - now[i]) * (fine ? 0.085 : 0.16); // eased: quick to start, slow to settle, going out and coming back
+        if (Math.abs(target - now[i]) > 0.1) moving = true; else now[i] = target;
+        r.style.translate = `${now[i].toFixed(1)}px 0`;
+      });
+      if (moving) wr = requestAnimationFrame(tick);
+    };
+    const kick = () => { if (!wr) wr = requestAnimationFrame(tick); };
+    if (fine) {
+      const zone = document.querySelector('.jgroups');
+      zone.addEventListener('pointermove', (e) => { my = e.clientY; kick(); });
+      zone.addEventListener('pointerleave', () => { my = null; kick(); });
+      addEventListener('scroll', () => { if (my !== null) kick(); }, { passive: true }); // the list slides under a still mouse
+    } else { addEventListener('scroll', kick, { passive: true }); addEventListener('resize', kick); kick(); }
   }
 
   // postcards turn over
@@ -622,7 +726,12 @@
   // ---------- destinations: region bar + a tall map that follows the region you're reading ----------
   const bar = $$('.regionbar a');
   const rbar = document.querySelector('.regionbar'); const dlay = document.querySelector('.destlayout');
-  if (rbar && dlay) { const out = () => rbar.classList.toggle('is-out', dlay.getBoundingClientRect().bottom < 160); addEventListener('scroll', out, { passive: true }); out(); }
+  if (rbar && dlay) {
+    // the bar only steps aside with the header once it is pinned at the top; until then it stays put under the hero
+    const hero = document.querySelector('.phero');
+    const out = () => { rbar.classList.toggle('is-out', dlay.getBoundingClientRect().bottom < 160); if (hero) rbar.classList.toggle('is-stuck', hero.getBoundingClientRect().bottom <= 1); };
+    addEventListener('scroll', out, { passive: true }); out();
+  }
   if (bar.length) {
     const rio = new IntersectionObserver((ens) => ens.forEach((en) => { if (en.isIntersecting) bar.forEach((a) => a.classList.toggle('is-active', a.hash === `#${en.target.id}`)); }), { rootMargin: '-40% 0px -55% 0px' });
     $$('.region').forEach((r) => rio.observe(r));

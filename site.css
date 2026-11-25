@@ -509,7 +509,13 @@ body:not(.hdr-shown) .regionbar { transform: translateY(-100%); }
 .dcard:hover .dcard__name { font-style: italic; }
 @media (hover: hover) and (pointer: fine) { .dcard:hover .dcard__img img { scale: 1.06; } }
 /* touch screens can't hover: everything shows */
-@media (hover: none) { .dcard::before { opacity: 1; } .dcard__more { grid-template-rows: 1fr; } .dcard__moreIn > * { opacity: 1; transform: none; } }
+/* touch screens: the name only; the first tap opens the details, the second goes to the planner */
+@media (hover: none) {
+  .dcard::before { opacity: .5; }
+  .dcard.is-open::before { opacity: 1; }
+  .dcard.is-open .dcard__more { grid-template-rows: 1fr; }
+  .dcard.is-open .dcard__moreIn > * { opacity: 1; transform: none; transition: opacity .5s var(--e-soft) .18s, transform .7s var(--e-out) .18s; }
+}
 .destmap { display: none; }
 @media (min-width: 1080px) {
   .destlayout { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gap); }
@@ -817,4 +823,259 @@ body { overflow-x: clip; }
   .wall__theme { min-width: 44px; min-height: 44px; }
   .regionbar a { padding-block: 12px; display: inline-block; }
   .link, .founder__mail { padding-block: 10px; }
+}
+
+/* ---------- featured journeys, v2: one list per continent, two-thirds wide, alternating sides ----------
+   Edges line up with the head above: right-hand lists end where the aside ends, left-hand lists start where the title starts.
+   The empty third beside each list is where the photo appears on hover. */
+.jgroups { display: grid; row-gap: clamp(56px, 6.5vw, 104px); }
+.jgrp { width: calc(66.667% - var(--gap) / 3); }
+.jgrp--r { margin-left: auto; }
+.jgrp--l { margin-right: auto; }
+.jgrp__head { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; padding-bottom: 14px; }
+.jgrp__name { margin: 0; font: 300 clamp(1.9rem, 2.7vw, 2.9rem)/1 var(--serif); letter-spacing: -.015em; }
+.jgrp__head .label { color: var(--ink-3); }
+@media (min-width: 1101px) {
+  .jrow { grid-template-columns: 36px minmax(0, 1.25fr) minmax(0, 2fr) minmax(0, .75fr) minmax(0, 1fr) 24px; min-height: 58px; padding: 10px 0; }
+  .jrow__name { font-size: clamp(1.4rem, 1.7vw, 1.85rem); }
+}
+/* the rows of a left-hand list come in from the left */
+html.motion .jgrp--l .jlist li[data-rise] { transform: translateX(max(-18vw, -260px)); }
+html.motion .jgrp--l .jlist li[data-rise].is-in { transform: none; }
+/* hover: the fill rises quickly, then eases into place; it drains the same way */
+@media (hover: hover) and (pointer: fine) {
+  .jrow::before { transition: transform .8s cubic-bezier(.25, 1, .5, 1); }
+  .jrow, .jrow__n, .jrow__line, .jrow__days, .jrow__price { transition: color .55s cubic-bezier(.25, 1, .5, 1); }
+  .jrow__go { transition: opacity .5s cubic-bezier(.16, 1, .3, 1), transform .6s var(--e-out); }
+}
+.journeys__all { display: inline-flex; }
+@media (max-width: 1100px) { .jgrp { width: calc(83.333% - var(--gap) / 6); } }
+@media (max-width: 900px) { .jgrp { width: 100%; } .jgroups { row-gap: 48px; } }
+/* why: each card's move takes as long as the stepper gives it (--wt); text waits half of it */
+.why.is-pinned .wpanel { transition: width var(--wt, 1.1s) var(--e-inout); }
+.why.is-pinned .wpanel.is-active .wpanel__txt > * { transition-delay: calc(var(--wt, 1.1s) * .5 + var(--k, 0) * .09s); }
+/* statement where it isn't pinned (phones, upright tablets): the two photos settle in as the words begin */
+html.motion .statement:not(.is-pinned) .statement__ph { opacity: 0; translate: 0 28px; transition: opacity 1s var(--e-soft), translate 1.4s var(--e-out); }
+html.motion .statement.is-played:not(.is-pinned) .statement__ph { opacity: 1; translate: 0 0; }
+html.motion .statement.is-played:not(.is-pinned) .statement__ph--1 { transition-delay: .5s; }
+.statement:not(.is-pinned) .pin__stage { min-height: 0; }
+/* journeys head: the title stacks in the first third; the aside starts on the same line as the Europe list below it */
+@media (min-width: 901px) {
+  .shead--journeys .display { grid-column: 1 / span 4; }
+  .shead--journeys .shead__aside { grid-column: 5 / span 4; padding-bottom: .5em; }
+}
+.journeys__all { display: flex; width: max-content; margin-left: auto; }
+
+/* =====================================================================================================
+   PHONES, round 2
+   ===================================================================================================== */
+/* the iPhone's strips (around the camera, under the address bar) take the page colour, which the script keeps
+   matched to what's on screen; the header and the menu reach up past the top edge so they read as one piece */
+.hdr::before { top: -120px; }
+.menu { inset: -120px 0 0 0; padding-top: calc(var(--hdr) + 40px + 120px); }
+
+@media (max-width: 900px) {
+  /* the hero fills the whole screen, under the address bar too; its words stay clear of the bar */
+  .hero { height: 100lvh; }
+  .hero__body { padding-bottom: calc(clamp(110px, 17vh, 190px) + 100lvh - 100svh); }
+  /* journey thumbnails: a touch of drift, never enough to show an edge */
+  .jrow__thumb img { scale: 1.08; }
+
+  /* why travel with us: four stacked rows; as you scroll each opens in turn (and closes again going back) */
+  .why.is-pinned .why__wrap { height: 100svh; box-sizing: border-box; display: flex; flex-direction: column; padding-top: calc(var(--hdr) + 4px); padding-bottom: 18px; }
+  .why.is-pinned .shead { flex: none; margin-bottom: 16px; }
+  .why.is-pinned .shead .display { font-size: clamp(2.1rem, 9vw, 3rem); }
+  .why.is-pinned .shead__aside { margin-top: 10px; font-size: var(--t-body); }
+  .why.is-pinned .wpanels { flex: 1; min-height: 0; height: auto; flex-direction: column; gap: 6px; }
+  .why.is-pinned .wpanel { width: auto; flex: 1 1 0; transition: flex-grow var(--wt, 1.1s) var(--e-inout); }
+  .why.is-pinned .wpanel.is-active { width: auto; flex-grow: 5.2; }
+  .why.is-pinned .wpanel img { width: 100%; height: max(100%, 50svh); top: 50%; left: 50%; translate: -50% -50%; }
+  .why.is-pinned .wpanel__bar { display: none; }
+  .why.is-pinned .wpanel__n { left: 16px; top: 50%; translate: 0 -50%; font-size: 1.45rem; transition: top var(--wt, 1.1s) var(--e-inout), translate var(--wt, 1.1s) var(--e-inout); }
+  .why.is-pinned .wpanel.is-active .wpanel__n { top: 16px; translate: 0 0; }
+  .why.is-pinned .wpanel__tab { writing-mode: horizontal-tb; rotate: none; left: 58px; right: 16px; top: 50%; bottom: auto; translate: 0 -50%; font-size: 1.25rem; overflow: hidden; text-overflow: ellipsis; }
+  .why.is-pinned .wpanel__txt { left: 16px; right: 16px; bottom: 16px; width: auto; gap: 8px; }
+  .why.is-pinned .wpanel__title { font-size: 1.7rem; }
+  .why.is-pinned .wpanel__txt p { font-size: var(--t-small); }
+  .why.is-pinned .wpanel__aside { font-size: 1.05rem; }
+}
+@media (max-width: 700px) {
+  /* hero: the photo sits higher, so the near ridge rises in front of the foot of "1817" */
+  .hero__layers > .hero__sky { top: calc(-2% - 11svh); object-position: 63% 50%; }
+  .hero__layers > .hero__front, .hero__layers > .hero__back { top: calc(-2% - 11svh); bottom: calc(-46% + 11svh); background-position: 63% 50%; -webkit-mask-position: 63% 50%; mask-position: 63% 50%; }
+
+  /* gallery: words at the top, the controls in one evenly spaced row (under the words in the grid, along the foot on the wall) */
+  .wall__intro { z-index: 6; top: calc(var(--hdr) + 14px); bottom: auto; right: var(--margin); max-width: none; gap: 12px; }
+  .wall.is-grid .wall__intro { top: auto; right: auto; }
+  .wall__ui { z-index: 7; }
+  .wall__hint { white-space: nowrap; }
+  .wall__intro .display { font-size: clamp(2.4rem, 11vw, 3.2rem); }
+  .wall__intro p { font-size: var(--t-small); max-width: 36ch; }
+  .wall:not(.is-grid)::after { content: ""; position: absolute; z-index: 5; inset: 0; width: auto; height: auto; pointer-events: none; background: linear-gradient(to bottom, rgba(21, 17, 14, .78) 0, rgba(21, 17, 14, 0) 42%, rgba(21, 17, 14, 0) 64%, rgba(21, 17, 14, .9) 100%); transition: opacity .6s; }
+  .wall.is-light:not(.is-grid)::after { background: linear-gradient(to bottom, rgba(242, 237, 228, .9) 0, rgba(242, 237, 228, 0) 42%, rgba(242, 237, 228, 0) 64%, rgba(242, 237, 228, .94) 100%); }
+  .wall__ui { left: var(--margin); right: var(--margin); bottom: max(22px, env(safe-area-inset-bottom)); justify-content: space-between; gap: 12px; }
+  .wall.is-grid { display: flex; flex-direction: column; }
+  .wall.is-grid .wall__intro { order: 0; padding: calc(var(--hdr) + 32px) var(--margin) 22px; }
+  .wall.is-grid .wall__ui { order: 1; position: static; padding: 0 var(--margin) 36px; justify-content: space-between; }
+  .wall.is-grid .wall__stage { order: 2; }
+
+  /* footer: every link the size of the copyright line, one even rhythm down each column */
+  .ftr__cols > div { justify-content: flex-start; gap: 0; padding: 0; }
+  .ftr__cols .ftr__head, .ftr__cols li, .ftr__cols a { font-size: 12px; line-height: 14px; }
+  .ftr__cols .ftr__head { letter-spacing: .16em; }
+  .ftr__cols a { display: inline-flex; align-items: center; min-height: 40px; }
+  .ftr__cols .uline { padding-bottom: 0; margin-bottom: 0; }
+}
+@media (max-width: 700px) {
+  .wall__stage { z-index: 1; }
+  .wall__hint { display: none; }
+}
+
+/* =====================================================================================================
+   ROUND: journeys refinements + one type style for every button and menu
+   ===================================================================================================== */
+/* continent heads: name and its count in brackets, both bold, the same size */
+.jgrp__name { font-weight: 600; }
+.jgrp__n { font: 600 clamp(1.9rem, 2.7vw, 2.9rem)/1 var(--serif); letter-spacing: -.01em; color: var(--ink); }
+
+/* the head: title stacked tight, its edge on the hover fill's edge; the aside beneath it */
+.shead--journeys .display { line-height: .8; }
+.shead--journeys .display .ln { padding-bottom: .12em; margin-bottom: -.12em; }
+@media (min-width: 901px) {
+  .shead--journeys { align-items: start; }
+  .shead--journeys .display { grid-column: 1 / span 4; margin-left: -16px; }
+  .shead--journeys .shead__aside { grid-column: 1 / span 4; margin-top: 28px; padding-bottom: 0; }
+  .journeys .jgroups { margin-top: calc(-1 * clamp(80px, 9vw, 150px)); }
+}
+
+/* rows on screens with a mouse: description and price wait for the hover */
+@media (hover: hover) and (pointer: fine) {
+  .jrow__line, .jrow__price { opacity: 0; transition: opacity .5s cubic-bezier(.25, 1, .5, 1), color .55s cubic-bezier(.25, 1, .5, 1); }
+  .jrow:hover .jrow__line, .jrow:hover .jrow__price, .jrow:focus-visible .jrow__line, .jrow:focus-visible .jrow__price { opacity: 1; }
+}
+/* the wave: rows are nudged left by the script; the nudge itself is not animated (it follows the scroll) */
+.jrow { will-change: translate; }
+
+/* ---------- one style for every button and menu: the label (small capitals, wide spacing) ---------- */
+.hdr__nav a, .hdr__cta, .ftr__cols li a, .regionbar a { font: 500 var(--t-label)/1.3 var(--sans); letter-spacing: .2em; text-transform: uppercase; }
+.ftr__cols li a { color: var(--cream-2); }
+.ftr__cols li a:hover { color: var(--cream); }
+.regionbar a.is-active { font-style: normal; color: var(--ink); }
+.regionbar a sup { font-size: 9px; letter-spacing: .05em; }
+@media (max-width: 700px) {
+  .ftr__cols .ftr__head, .ftr__cols li, .ftr__cols a { font-size: var(--t-label); line-height: 1.3; letter-spacing: .2em; }
+}
+
+/* ---------- journeys, spacing pass (laptop): every gap is set against the text itself ---------- */
+/* the count: lining figures sit centred in the brackets, with a little air either side */
+.jgrp__n { display: inline-flex; align-items: center; font-variant-numeric: lining-nums; }
+.jgrp__n i { font-style: normal; }
+.jgrp__n b { font-weight: 600; padding: 0 .14em; font-size: .82em; position: relative; top: .01em; }
+@media (min-width: 901px) {
+  /* --jt: the title's distance from the left edge; the same distance sits above it and between the aside and the lists */
+  .journeys { --jt: calc(var(--margin) - 16px); --jb: clamp(90px, 9vw, 150px); padding-top: calc(2 * var(--jt) + 6px); padding-bottom: calc(2 * var(--jb) + 18px); }
+  .journeys .jgroups { margin-top: 0; row-gap: var(--jg, 13px); }
+  .shead--journeys { margin-bottom: calc(2 * var(--jt)); }
+  .shead--journeys .shead__aside { margin-left: -14px; margin-top: 40px; }
+  .jgrp__head { padding-bottom: var(--jh, 14px); }
+  .journeys__all { margin-top: calc(2 * var(--jb) + 9px); }
+}
+
+/* continent titles in capitals */
+.jgrp__name { text-transform: uppercase; letter-spacing: .03em; }
+/* destinations: no rule under each continent; the gap above a continent matches the gap below its title */
+.region__head { border-bottom: 0; }
+/* the space above each continent = the space from its title down to its photos (title margin + padding, measured to the letters) */
+.region:not(:first-child) { padding-top: calc(var(--tgap) + 4px); }
+
+/* continent heads: the same size as the journey names, set heavier */
+.jgrp__name, .jgrp__n { font-size: clamp(1.4rem, 1.7vw, 1.85rem); font-weight: 700; }
+.jgrp__n b { font-weight: 700; }
+.jgrp__head { will-change: translate; }
+/* each row's arrow stands centred under the digits of its continent's count (the count scales with the type, the arrow doesn't) */
+@media (min-width: 1101px) { .jgroups .jrow__go { margin-right: calc(clamp(1.4rem, 1.7vw, 1.85rem) * .8 - 12.2px); } }
+
+/* ---------- destinations, cards + headings pass ---------- */
+/* the country name stays put at the top of its photo; the hover brings the description and price up from the bottom */
+.dcard__name { position: absolute; z-index: 2; top: 0; left: 0; right: 0; padding: clamp(14px, 1.3vw, 20px); pointer-events: none; }
+.dcard__img::before { content: ""; position: absolute; z-index: 1; inset: 0 0 auto 0; height: 40%; background: linear-gradient(to bottom, rgba(21, 17, 14, .5), rgba(21, 17, 14, 0)); pointer-events: none; }
+.dcard__over .dcard__text { padding-top: 0; }
+/* headings: no count, no rule; spacing set below against the letters */
+.region__head { display: block; padding-bottom: 0; margin-bottom: var(--rb, 27px); }
+.region:not(:first-child) { padding-top: var(--ra, 28px); }
+/* triple the room after the last row */
+.destlayout { padding-bottom: calc(3 * var(--section) - 52px); } /* three times the old gap after the last row (it was the section space less 26px) */
+
+/* region bar: part of the page, not the hero. It only slides away with the header once it is pinned */
+body:not(.hdr-shown) .regionbar:not(.is-stuck) { transform: none; }
+/* the map shows only its own hover light; no bubble with the region's name */
+.atlas__tip, .destmap__tip { display: none !important; }
+/* continent titles at the size of the country names on the cards */
+.region__head .display { font-size: clamp(1.25rem, 1.45vw, 1.55rem); line-height: 1.05; letter-spacing: 0; }
+/* smaller titles, same 35px either side of them (measured cap top to baseline) */
+.region__head { margin-bottom: var(--rb, 29px); }
+.region:not(:first-child) { padding-top: var(--ra, 30px); }
+/* the list starts as far below the region bar as it ends above the next section (both measured to the letters/photos) */
+.destlayout { padding-top: calc(3 * var(--section) - 102px); }
+
+/* footer: twice the room above the link columns (and the tagline beside them), and twice the room below them before the logo */
+.ftr { padding-top: calc(2 * var(--fg) - var(--fl) * .2 + 10px); }
+.ftr .ftr__mark { margin-top: calc(2 * var(--fg) + 13px); }
+.ftr .ftr__mark svg { width: min(100%, (100svh - 4 * var(--fg) - 26px - 2 * var(--fl) - 3 * var(--fb) - 14px - 1px) * 3.96); }
+/* one list now: the arrows go back to the right edge of their rows */
+@media (min-width: 1101px) { .jgroups .jrow__go { margin-right: 0; } }
+
+/* =====================================================================================================
+   ONE LARGE PADDING for the whole site: the space "Why travel with us" sits below the top of the screen
+   (its scene is centred, so that space is a fifth of the screen height: 176px on 1440×900)
+   Each use below subtracts the small, measured gap between its box and the letters/lines it is about.
+   ===================================================================================================== */
+:root { --pad: clamp(110px, 19.6vh, 240px); }
+@media (min-width: 901px) {
+  .journeys { padding-top: var(--pad); padding-bottom: var(--pad); }
+  .shead--journeys { margin-bottom: calc(var(--pad) - 6px); }
+  .journeys__all { margin-top: calc(var(--pad) - 9px); }
+  .destlayout { padding-top: calc(var(--pad) - 23px); padding-bottom: var(--pad); }
+  .ftr { padding-top: calc(var(--pad) - 10px); }
+  .ftr .ftr__mark { margin-top: calc(var(--pad) - 13px); }
+  .ftr .ftr__mark svg { width: min(100%, (100svh - 2 * var(--pad) - 2 * var(--fl) - 3 * var(--fb) - 14px - 1px) * 3.96); }
+}
+
+/* ---------- the padding unit everywhere (laptop and up) ---------- */
+@media (min-width: 901px) {
+  /* every regular section: the unit above and below its content */
+  :root { --section: var(--pad); }
+  .atlas { align-items: start; }
+  /* pinned scenes start their content the unit's distance below the top of the screen, as "Why travel with us" does */
+  .reviews.is-pinned .pin__stage, .story.is-pinned .pin__stage, .founder.is-pinned .pin__stage, .promises.is-pinned .pin__stage { align-items: start; box-sizing: border-box; padding-top: var(--pad); }
+  .reviews.is-pinned .wrap { padding-top: 0; }
+}
+@media (min-width: 901px) {
+  /* map section: words and map both start at the top; the section is as tall as its content plus the unit either side */
+  .atlas { min-height: 0; }
+  .atlas__top { align-items: start; }
+  /* small measured trims so each scene's first line lands on the unit */
+  .reviews.is-pinned .pin__stage, .promises.is-pinned .pin__stage { padding-top: calc(var(--pad) - 5px); }
+  .founder.is-pinned .pin__stage { padding-top: calc(var(--pad) + 6px); }
+  .plan { padding-top: calc(var(--pad) - 8px); padding-bottom: calc(var(--pad) - 99px); }
+}
+@media (min-width: 901px) {
+  .atlas { padding-top: calc(var(--pad) - 4px); padding-bottom: calc(var(--pad) - 5px); }
+  .story.is-pinned .pin__stage { padding-top: calc(var(--pad) + 6px); }
+}
+/* the map section always fills the screen: the words still start a padding unit down; the night runs to the bottom */
+@media (min-width: 901px) { .atlas { min-height: 100vh; min-height: 100svh; } }
+
+/* every large serif title: the tight line spacing of "Featured / journeys" (0.8 of the type size), so stacked lines read as one block */
+.display, .h2, .convo__line, .hero__title, .ftr__line { line-height: .8; }
+.phero .display, .phero__head .display { line-height: .8; }
+/* re-trimmed after the tighter title spacing, so first lines land on the padding unit again */
+@media (min-width: 901px) {
+  .atlas { padding-top: calc(var(--pad) + 1px); }
+  .why.is-pinned .pin__stage { align-items: start; box-sizing: border-box; padding-top: calc(var(--pad) - 15px); }
+  .why.is-pinned .why__wrap { padding-top: 0; }
+  .reviews.is-pinned .pin__stage { padding-top: calc(var(--pad) - 1px); }
+  .promises.is-pinned .pin__stage { padding-top: calc(var(--pad) + 1px); }
+  .ftr { padding-top: calc(var(--pad) - 4px); }
+  .ftr .ftr__mark { margin-top: calc(var(--pad) - 8px); }
 }
